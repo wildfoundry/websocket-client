@@ -202,27 +202,32 @@ class WebSocketApp(object):
                     break
 
                 if r:
-                    op_code, frame = self.sock.recv_data_frame(True)
-                    if op_code == ABNF.OPCODE_CLOSE:
-                        close_frame = frame
-                        break
-                    elif op_code == ABNF.OPCODE_PING:
-                        self._callback(self.on_ping, frame.data)
-                    elif op_code == ABNF.OPCODE_PONG:
-                        self.last_pong_tm = time.time()
-                        self._callback(self.on_pong, frame.data)
-                    elif op_code == ABNF.OPCODE_CONT and self.on_cont_message:
-                        self._callback(self.on_data, data,
-                                       frame.opcode, frame.fin)
-                        self._callback(self.on_cont_message,
-                                       frame.data, frame.fin)
-                    else:
-                        data = frame.data
+                    while self.keep_running:
+                        op_code, frame = self.sock.recv_data_frame(True)
+                        if op_code == ABNF.OPCODE_CLOSE:
+                            close_frame = frame
+                            break
+                        elif op_code == ABNF.OPCODE_PING:
+                            self._callback(self.on_ping, frame.data)
+                        elif op_code == ABNF.OPCODE_PONG:
+                            self.last_pong_tm = time.time()
+                            self._callback(self.on_pong, frame.data)
+                        elif op_code == ABNF.OPCODE_CONT and self.on_cont_message:
+                            self._callback(self.on_data, data,
+                                           frame.opcode, frame.fin)
+                            self._callback(self.on_cont_message,
+                                           frame.data, frame.fin)
+                        else:
+                            data = frame.data
 
-                        if six.PY3 and op_code == ABNF.OPCODE_TEXT:
-                            data = data.decode("utf-8")
-                        self._callback(self.on_data, data, frame.opcode, True)
-                        self._callback(self.on_message, data)
+                            if six.PY3 and op_code == ABNF.OPCODE_TEXT:
+                                data = data.decode("utf-8")
+                            self._callback(self.on_data, data, frame.opcode, True)
+                            self._callback(self.on_message, data)
+
+                        # Ensure all available frames have been read from ssl sockets
+                        if not getattr(self.sock.sock, 'pending', lambda: False)():
+                            break
 
                 if ping_timeout and self.last_ping_tm \
                         and time.time() - self.last_ping_tm > ping_timeout \
