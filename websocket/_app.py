@@ -202,7 +202,7 @@ class WebSocketApp(object):
                     break
 
                 if r:
-                    while self.keep_running:
+                    while self.sock.connected and self.keep_running:
                         op_code, frame = self.sock.recv_data_frame(True)
                         if op_code == ABNF.OPCODE_CLOSE:
                             close_frame = frame
